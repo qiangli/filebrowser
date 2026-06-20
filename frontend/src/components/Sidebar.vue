@@ -63,17 +63,6 @@
 
     <p class="credits">
       <span>
-        <span v-if="disableExternal">File Browser</span>
-        <a
-          v-else
-          rel="noopener noreferrer"
-          target="_blank"
-          href="https://github.com/filebrowser/filebrowser"
-          >File Browser</a
-        >
-        <span> {{ " " }} {{ version }}</span>
-      </span>
-      <span>
         <a @click="help">{{ $t("sidebar.help") }}</a>
       </span>
     </p>
@@ -87,11 +76,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useFileStore } from "@/stores/file";
 import { useLayoutStore } from "@/stores/layout";
 
-import {
-  version,
-  disableExternal,
-  disableUsedPercentage,
-} from "@/utils/constants";
+import { disableUsedPercentage } from "@/utils/constants";
 import { files as api } from "@/api";
 import ProgressBar from "@/components/ProgressBar.vue";
 import prettyBytes from "pretty-bytes";
@@ -115,8 +100,6 @@ export default {
     active() {
       return this.currentPromptName === "sidebar";
     },
-    version: () => version,
-    disableExternal: () => disableExternal,
     disableUsedPercentage: () => disableUsedPercentage,
   },
   methods: {
