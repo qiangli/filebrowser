@@ -480,10 +480,8 @@ const headerButtons = computed(() => {
     shell: authStore.user?.perm.execute && enableExec,
     delete: fileStore.selectedCount > 0 && authStore.user?.perm.delete,
     rename: fileStore.selectedCount === 1 && authStore.user?.perm.rename,
-    share:
-      fileStore.selectedCount === 1 &&
-      authStore.user?.perm.share &&
-      authStore.user?.perm.download,
+    // Single-user local app: file sharing is disabled.
+    share: false,
     move: fileStore.selectedCount > 0 && authStore.user?.perm.rename,
     copy: fileStore.selectedCount > 0 && authStore.user?.perm.create,
   };

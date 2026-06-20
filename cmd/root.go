@@ -196,6 +196,11 @@ user created with the credentials from options "username" and "password".`,
 		}
 		server.Root = root
 
+		// Single-user local app: only ever bind to the loopback interface,
+		// regardless of any configured/overridden address.
+		server.Address = "127.0.0.1"
+		server.Socket = ""
+
 		adr := server.Address + ":" + server.Port
 
 		var listener net.Listener
@@ -413,7 +418,7 @@ func quickSetup(v *viper.Viper, s *storage.Storage) error {
 				Rename:   true,
 				Modify:   true,
 				Delete:   true,
-				Share:    true,
+				Share:    false,
 				Download: true,
 			},
 		},
@@ -428,19 +433,14 @@ func quickSetup(v *viper.Viper, s *storage.Storage) error {
 		Rules:    nil,
 	}
 
-	var err error
-	if v.GetBool("noauth") {
-		set.AuthMethod = auth.MethodNoAuth
-		err = s.Auth.Save(&auth.NoAuth{})
-	} else {
-		set.AuthMethod = auth.MethodJSONAuth
-		err = s.Auth.Save(&auth.JSONAuth{})
-	}
-	if err != nil {
+	// Single-user local app: authentication is disabled entirely. The app
+	// always runs as the single bootstrapped user (no login/logout).
+	set.AuthMethod = auth.MethodNoAuth
+	if err := s.Auth.Save(&auth.NoAuth{}); err != nil {
 		return err
 	}
 
-	err = s.Settings.Save(set)
+	err := s.Settings.Save(set)
 	if err != nil {
 		return err
 	}

@@ -8,41 +8,6 @@
         </div>
 
         <div class="card-content">
-          <p>
-            <input type="checkbox" v-model="settings.signup" />
-            {{ t("settings.allowSignup") }}
-          </p>
-
-          <p>
-            <input type="checkbox" v-model="settings.createUserDir" />
-            {{ t("settings.createUserDir") }}
-          </p>
-
-          <p>
-            <input type="checkbox" v-model="settings.hideLoginButton" />
-            {{ t("settings.hideLoginButton") }}
-          </p>
-
-          <p>
-            <label class="small">{{ t("settings.userHomeBasePath") }}</label>
-            <input
-              class="input input--block"
-              type="text"
-              v-model="settings.userHomeBasePath"
-            />
-          </p>
-
-          <p>
-            <label for="minimumPasswordLength">{{
-              t("settings.minimumPasswordLength")
-            }}</label>
-            <vue-number-input
-              controls
-              v-model.number="settings.minimumPasswordLength"
-              id="minimumPasswordLength"
-              :min="1"
-            />
-          </p>
 
           <h3>{{ t("settings.rules") }}</h3>
           <p class="small">{{ t("settings.globalRules") }}</p>

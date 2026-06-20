@@ -49,40 +49,6 @@
           <span>{{ $t("sidebar.settings") }}</span>
         </button>
       </div>
-      <button
-        v-if="canLogout"
-        @click="logout"
-        class="action"
-        id="logout"
-        :aria-label="$t('sidebar.logout')"
-        :title="$t('sidebar.logout')"
-      >
-        <i class="material-icons">exit_to_app</i>
-        <span>{{ $t("sidebar.logout") }}</span>
-      </button>
-    </template>
-    <template v-else>
-      <router-link
-        v-if="!hideLoginButton"
-        class="action"
-        to="/login"
-        :aria-label="$t('sidebar.login')"
-        :title="$t('sidebar.login')"
-      >
-        <i class="material-icons">exit_to_app</i>
-        <span>{{ $t("sidebar.login") }}</span>
-      </router-link>
-
-      <router-link
-        v-if="signup"
-        class="action"
-        to="/login"
-        :aria-label="$t('sidebar.signup')"
-        :title="$t('sidebar.signup')"
-      >
-        <i class="material-icons">person_add</i>
-        <span>{{ $t("sidebar.signup") }}</span>
-      </router-link>
     </template>
 
     <div
@@ -121,16 +87,10 @@ import { useAuthStore } from "@/stores/auth";
 import { useFileStore } from "@/stores/file";
 import { useLayoutStore } from "@/stores/layout";
 
-import * as auth from "@/utils/auth";
 import {
   version,
-  signup,
-  hideLoginButton,
   disableExternal,
   disableUsedPercentage,
-  noAuth,
-  logoutPage,
-  loginPage,
 } from "@/utils/constants";
 import { files as api } from "@/api";
 import ProgressBar from "@/components/ProgressBar.vue";
@@ -155,12 +115,9 @@ export default {
     active() {
       return this.currentPromptName === "sidebar";
     },
-    signup: () => signup,
-    hideLoginButton: () => hideLoginButton,
     version: () => version,
     disableExternal: () => disableExternal,
     disableUsedPercentage: () => disableUsedPercentage,
-    canLogout: () => !noAuth && (loginPage || logoutPage !== "/login"),
   },
   methods: {
     ...mapActions(useLayoutStore, ["closeHovers", "showHover"]),
@@ -203,7 +160,6 @@ export default {
     help() {
       this.showHover("help");
     },
-    logout: auth.logout,
   },
   watch: {
     $route: {
