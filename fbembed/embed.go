@@ -13,10 +13,15 @@
 package fbembed
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	storm "github.com/asdine/storm/v3"
 
@@ -143,7 +148,92 @@ func New(opts Options) (handler http.Handler, closer func() error, err error) {
 		return nil, nil, fmt.Errorf("fbembed: build handler: %w", err)
 	}
 
-	return h, db.Close, nil
+	return sanitizeUserWrites(h), db.Close, nil
+}
+
+// benignUserFields is the allowlist of per-user settings a client may change
+// through PUT/PATCH /api/users — display preferences only. Keys are the
+// canonical (Title-cased) File Browser User field names the update handler
+// matches on; the values are looked up case-insensitively.
+var benignUserFields = []string{
+	"Locale", "ViewMode", "SingleClick", "RedirectAfterCopyMove",
+	"Sorting", "HideDotfiles", "DateFormat", "AceEditorTheme",
+}
+
+// sanitizeUserWrites is the embed's "host is the gate" guard on per-user
+// updates. The embedding host owns the security-relevant user fields — Perm
+// (read-only⇄write), Scope, plus Username/Password/LockPassword/Commands/
+// Rules — via the Options + reconcile(), NOT the in-app UI. So any client
+// update to /api/users is rewritten to touch ONLY the benign display
+// preferences (view mode, dotfiles, theme, locale, sorting, …); a request to
+// change perm/scope/etc. is silently dropped (no-op 200), never applied.
+//
+// This is what lets the host expose the whole File Browser through a reverse
+// proxy without LAN-fencing /api/users: the view switcher, dark mode, and
+// "hide dotfiles" all persist normally, while "enable editing" and scope
+// changes can't be made from any client — only the host can, out of band.
+func sanitizeUserWrites(next http.Handler) http.Handler {
+	allowed := make(map[string]string, len(benignUserFields))
+	for _, f := range benignUserFields {
+		allowed[strings.ToLower(f)] = f
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (r.Method != http.MethodPut && r.Method != http.MethodPatch) ||
+			!strings.HasPrefix(r.URL.Path, "/api/users/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		_ = r.Body.Close()
+		if err != nil {
+			http.Error(w, "read body", http.StatusBadRequest)
+			return
+		}
+		var env map[string]json.RawMessage
+		if json.Unmarshal(body, &env) != nil {
+			// Unparseable → restore the body and let File Browser 400 it.
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			next.ServeHTTP(w, r)
+			return
+		}
+		var which []string
+		_ = json.Unmarshal(env["which"], &which)
+
+		out := make([]string, 0, len(which))
+		seen := map[string]bool{}
+		addAll := func() {
+			for _, f := range benignUserFields {
+				if !seen[f] {
+					seen[f] = true
+					out = append(out, f)
+				}
+			}
+		}
+		for _, f := range which {
+			lf := strings.ToLower(strings.TrimSpace(f))
+			if lf == "all" {
+				// "all" would update perm/scope too — expand to benign only.
+				addAll()
+			} else if canon, ok := allowed[lf]; ok && !seen[canon] {
+				seen[canon] = true
+				out = append(out, canon)
+			}
+			// dangerous fields (perm/scope/username/password/…) dropped.
+		}
+		if len(out) == 0 {
+			// Nothing host-permitted to change (e.g. an "enable editing"
+			// perm write) — succeed as a no-op so the client gets no error.
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		wb, _ := json.Marshal(out)
+		env["which"] = wb
+		nb, _ := json.Marshal(env)
+		r.Body = io.NopCloser(bytes.NewReader(nb))
+		r.ContentLength = int64(len(nb))
+		r.Header.Set("Content-Length", strconv.Itoa(len(nb)))
+		next.ServeHTTP(w, r)
+	})
 }
 
 // permissions returns the lone user's perms for a given write mode. Admin
@@ -182,6 +272,12 @@ func bootstrap(store *storage.Storage, scope string, allowWrite bool) error {
 			Locale:   "en",
 			ViewMode: users.MosaicViewMode,
 			Perm:     permissions(allowWrite),
+			// Hide dotfiles by default. The per-user toggle lives in the
+			// account-settings page, which the embed hides (single-user,
+			// host-is-the-gate) AND whose /api/users write is LAN-fenced by
+			// the host — so this server-side default is how the preference
+			// is expressed. reconcile() applies it to pre-existing stores.
+			HideDotfiles: true,
 		},
 		AuthMethod: auth.MethodNoAuth,
 		Branding:   settings.Branding{},
@@ -238,14 +334,25 @@ func reconcile(store *storage.Storage, scope string, allowWrite bool) error {
 		return fmt.Errorf("fbembed: load users: %w", err)
 	}
 	for _, u := range list {
+		var fields []string
 		want := permissions(allowWrite)
 		want.Admin = u.Perm.Admin // never demote/promote admin here
-		if u.Perm == want {
+		if u.Perm != want {
+			u.Perm = want
+			fields = append(fields, "Perm")
+		}
+		// Apply the hide-dotfiles builtin default to pre-existing stores
+		// (created before it was the default). The per-user toggle UI is
+		// hidden in the embed, so this is how the preference is expressed.
+		if !u.HideDotfiles {
+			u.HideDotfiles = true
+			fields = append(fields, "HideDotfiles")
+		}
+		if len(fields) == 0 {
 			continue
 		}
-		u.Perm = want
-		if err := store.Users.Update(u, "Perm"); err != nil {
-			return fmt.Errorf("fbembed: update perms: %w", err)
+		if err := store.Users.Update(u, fields...); err != nil {
+			return fmt.Errorf("fbembed: update user: %w", err)
 		}
 	}
 	return nil
