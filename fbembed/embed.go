@@ -14,7 +14,6 @@ package fbembed
 
 import (
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/filebrowser/filebrowser/v2/auth"
 	"github.com/filebrowser/filebrowser/v2/diskcache"
-	"github.com/filebrowser/filebrowser/v2/frontend"
 	fbhttp "github.com/filebrowser/filebrowser/v2/http"
 	"github.com/filebrowser/filebrowser/v2/img"
 	"github.com/filebrowser/filebrowser/v2/settings"
@@ -128,9 +126,9 @@ func New(opts Options) (handler http.Handler, closer func() error, err error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("fbembed: upload cache: %w", err)
 	}
-	assets, err := fs.Sub(frontend.Assets(), "dist")
+	assets, err := distFS()
 	if err != nil {
-		return nil, nil, fmt.Errorf("fbembed: assets: %w", err)
+		return nil, nil, err
 	}
 
 	h, err := fbhttp.NewHandler(
