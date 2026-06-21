@@ -2,17 +2,17 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
-import legacy from "@vitejs/plugin-legacy";
 import { compression } from "vite-plugin-compression2";
 
+// No @vitejs/plugin-legacy: this app ships embedded in outpost (and as a
+// self-hosted standalone) for modern browsers only. The legacy nomodule
+// bundles roughly doubled the JS payload (~1 MB gz) for IE/pre-2018
+// support nobody here needs — dropping them ~halves the embedded
+// fbembed/dist.zip. Modern ESM bundles are unchanged.
 const plugins = [
   vue(),
   VueI18nPlugin({
     include: [path.resolve(__dirname, "./src/i18n/**/*.json")],
-  }),
-  legacy({
-    // defaults already drop IE support
-    targets: ["defaults"],
   }),
   compression({ include: /\.js$/, deleteOriginalAssets: false }),
 ];

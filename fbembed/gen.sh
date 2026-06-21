@@ -9,7 +9,7 @@
 # assets are served raw) and stray .gitkeep/.map files.
 set -euo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 
 echo "fbembed: building frontend…"
