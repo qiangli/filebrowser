@@ -29,6 +29,7 @@ import (
 	"github.com/filebrowser/filebrowser/v2/img"
 	"github.com/filebrowser/filebrowser/v2/settings"
 	"github.com/filebrowser/filebrowser/v2/storage"
+	"github.com/filebrowser/filebrowser/v2/telemetry"
 	"github.com/filebrowser/filebrowser/v2/users"
 )
 
@@ -245,6 +246,19 @@ user created with the credentials from options "username" and "password".`,
 			return err
 		}
 
+		// OTEL trace propagation (cooperative-web-apps observability
+		// contract, Rule 1 + Rule 3). Init installs the W3C propagator
+		// always and a trace exporter only when OTEL_EXPORTER_OTLP_ENDPOINT
+		// is set; wrapping the handler makes inbound traceparent the parent
+		// of this app's server spans so the trace stitches across the
+		// edge → reverse-proxy → app boundary. No-op (near-zero overhead)
+		// when no collector endpoint is configured.
+		tprov, err := telemetry.Init(context.Background())
+		if err != nil {
+			log.Printf("telemetry: init failed, continuing without tracing: %v", err)
+		}
+		handler = telemetry.Handler("", handler)
+
 		defer listener.Close()
 
 		log.Println("Listening on", listener.Addr().String())
@@ -277,6 +291,9 @@ user created with the credentials from options "username" and "password".`,
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			log.Fatalf("HTTP shutdown error: %v", err)
+		}
+		if err := tprov.Shutdown(shutdownCtx); err != nil {
+			log.Printf("telemetry: shutdown error: %v", err)
 		}
 		log.Println("Graceful shutdown complete.")
 
@@ -411,13 +428,20 @@ func quickSetup(v *viper.Viper, s *storage.Storage) error {
 			SingleClick:           false,
 			RedirectAfterCopyMove: true,
 			AceEditorTheme:        v.GetString("defaults.aceEditorTheme"),
+			// Single-user local app: read-only + download-only by default.
+			// Every mutating file operation is denied — no create/upload,
+			// no modify (edit/overwrite), no rename, no delete — and no
+			// command execution or sharing. Only browse + download remain.
+			// These granular perms gate the file handlers directly (they
+			// are not bypassed by the Admin bit), and the frontend hides
+			// the corresponding buttons, so the UI matches the backend.
 			Perm: users.Permissions{
 				Admin:    false,
-				Execute:  true,
-				Create:   true,
-				Rename:   true,
-				Modify:   true,
-				Delete:   true,
+				Execute:  false,
+				Create:   false,
+				Rename:   false,
+				Modify:   false,
+				Delete:   false,
 				Share:    false,
 				Download: true,
 			},

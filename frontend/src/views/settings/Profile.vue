@@ -98,6 +98,31 @@
         </div>
       </form>
     </div>
+
+    <div v-if="authStore.user?.perm.admin" class="column">
+      <form class="card" @submit="updatePermissions">
+        <div class="card-title">
+          <h2>{{ t("settings.fileEditing") }}</h2>
+        </div>
+
+        <div class="card-content">
+          <p class="small">{{ t("settings.fileEditingHelp") }}</p>
+          <p>
+            <input type="checkbox" name="allowWrite" v-model="allowWrite" />
+            {{ t("settings.allowWrite") }}
+          </p>
+        </div>
+
+        <div class="card-action">
+          <input
+            class="button button--flat"
+            type="submit"
+            name="submitPermissions"
+            :value="t('buttons.update')"
+          />
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -129,6 +154,14 @@ const dateFormat = ref<boolean>(false);
 const locale = ref<string>("");
 const aceEditorTheme = ref<string>("");
 
+// Single write-access switch for the lone (admin) user. One toggle flips
+// every write-related file permission together (create/upload, modify/
+// edit, rename, delete) — the granular perms the backend handlers gate on
+// (Admin does NOT bypass them). This is the in-UI switch between a
+// read-only/download-only browser and a full read-write one. Command
+// execution is a separate concern and is left untouched.
+const allowWrite = ref<boolean>(false);
+
 const passwordClass = computed(() => {
   const baseClass = "input input--block";
 
@@ -152,6 +185,12 @@ onMounted(async () => {
   redirectAfterCopyMove.value = authStore.user.redirectAfterCopyMove;
   dateFormat.value = authStore.user.dateFormat;
   aceEditorTheme.value = authStore.user.aceEditorTheme;
+  // "Write enabled" = all four write perms granted together.
+  allowWrite.value =
+    authStore.user.perm.create &&
+    authStore.user.perm.modify &&
+    authStore.user.perm.rename &&
+    authStore.user.perm.delete;
   layoutStore.loading = false;
   isCurrentPasswordRequired.value = authMethod == "json";
 
@@ -210,6 +249,33 @@ const updateSettings = async (event: Event) => {
       "dateFormat",
       "aceEditorTheme",
     ]);
+    authStore.updateUser(data);
+    $showSuccess(t("settings.settingsUpdated"));
+  } catch (err) {
+    if (err instanceof Error) {
+      $showError(err);
+    }
+  }
+};
+const updatePermissions = async (event: Event) => {
+  event.preventDefault();
+
+  try {
+    if (authStore.user === null) throw new Error("User is not set!");
+
+    const data = {
+      ...authStore.user,
+      id: authStore.user.id,
+      perm: {
+        ...authStore.user.perm,
+        create: allowWrite.value,
+        modify: allowWrite.value,
+        rename: allowWrite.value,
+        delete: allowWrite.value,
+      },
+    };
+
+    await api.update(data, ["perm"]);
     authStore.updateUser(data);
     $showSuccess(t("settings.settingsUpdated"));
   } catch (err) {

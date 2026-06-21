@@ -21,7 +21,7 @@ import (
 	"github.com/filebrowser/filebrowser/v2/version"
 )
 
-func handleWithStaticData(w http.ResponseWriter, _ *http.Request, d *data, fSys fs.FS, file, contentType string) (int, error) {
+func handleWithStaticData(w http.ResponseWriter, r *http.Request, d *data, fSys fs.FS, file, contentType string) (int, error) {
 	w.Header().Set("Content-Type", contentType)
 
 	auther, err := d.store.Auth.Get(d.settings.AuthMethod)
@@ -29,14 +29,29 @@ func handleWithStaticData(w http.ResponseWriter, _ *http.Request, d *data, fSys 
 		return http.StatusInternalServerError, err
 	}
 
+	// Cooperative-app mounting (outpost / cloudbox): the public URL prefix is
+	// dynamic and arrives as X-Forwarded-Prefix (e.g. "/matrix/h/<host>/app/
+	// <name>"). The reverse proxy has already stripped that prefix before this
+	// upstream sees the request, so request routing keeps using server.BaseURL
+	// (empty for a loopback app), but every URL the SPA *emits* — assets, API
+	// calls, the vue-router base, websockets, tus uploads — must carry the
+	// public prefix so the browser resolves them under the proxied mount.
+	// When the header is absent (direct LAN/loopback access) we fall back to
+	// the statically configured server.BaseURL, so the same binary works both
+	// ways with no conditional config.
+	basePrefix := d.server.BaseURL
+	if fwd := strings.TrimRight(r.Header.Get("X-Forwarded-Prefix"), "/"); fwd != "" {
+		basePrefix = fwd
+	}
+
 	data := map[string]interface{}{
 		"Name":                  d.settings.Branding.Name,
 		"DisableExternal":       d.settings.Branding.DisableExternal,
 		"DisableUsedPercentage": d.settings.Branding.DisableUsedPercentage,
 		"Color":                 d.settings.Branding.Color,
-		"BaseURL":               d.server.BaseURL,
+		"BaseURL":               basePrefix,
 		"Version":               version.Version,
-		"StaticURL":             path.Join(d.server.BaseURL, "/static"),
+		"StaticURL":             path.Join(basePrefix, "/static"),
 		"Signup":                d.settings.Signup,
 		"NoAuth":                d.settings.AuthMethod == auth.MethodNoAuth,
 		"AuthMethod":            d.settings.AuthMethod,
