@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -65,7 +64,7 @@ func TestStaticAssetServedWithoutSeek(t *testing.T) {
 	defer func() { assetsSource = orig }()
 
 	dir := t.TempDir()
-	h, closer, err := New(Options{Scope: dir, DBPath: filepath.Join(dir, "fb.db"), AllowWrite: false})
+	h, closer, err := New(Options{Scope: dir, AllowWrite: false})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -117,10 +116,9 @@ func do(t *testing.T, method, url, token string) int {
 
 func TestEmbedReadOnlyThenToggleWrite(t *testing.T) {
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "fb.db")
 
 	// 1. Fresh, read-only.
-	h, closer, err := New(Options{Scope: dir, DBPath: dbPath, AllowWrite: false})
+	h, closer, err := New(Options{Scope: dir, AllowWrite: false})
 	if err != nil {
 		t.Fatalf("New read-only: %v", err)
 	}
@@ -138,8 +136,9 @@ func TestEmbedReadOnlyThenToggleWrite(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	// 2. Re-open the SAME store with AllowWrite — reconcile, no DB reset.
-	h2, closer2, err := New(Options{Scope: dir, DBPath: dbPath, AllowWrite: true})
+	// 2. Rebuild over the same scope with AllowWrite — perms are recomputed
+	// from Options (no stored state to reconcile).
+	h2, closer2, err := New(Options{Scope: dir, AllowWrite: true})
 	if err != nil {
 		t.Fatalf("New write: %v", err)
 	}
@@ -160,7 +159,7 @@ func TestEmbedReadOnlyThenToggleWrite(t *testing.T) {
 // X-Forwarded-Prefix, so the handler works behind a path-prefixing proxy.
 func TestEmbedPrefixContract(t *testing.T) {
 	dir := t.TempDir()
-	h, closer, err := New(Options{Scope: dir, DBPath: filepath.Join(dir, "fb.db")})
+	h, closer, err := New(Options{Scope: dir})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

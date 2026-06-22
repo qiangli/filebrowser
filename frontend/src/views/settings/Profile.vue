@@ -230,26 +230,15 @@ const updateSettings = async (event: Event) => {
   try {
     if (authStore.user === null) throw new Error("User is not set!");
 
-    const data = {
-      ...authStore.user,
-      id: authStore.user.id,
-      locale: locale.value,
-      hideDotfiles: hideDotfiles.value,
-      singleClick: singleClick.value,
-      redirectAfterCopyMove: redirectAfterCopyMove.value,
-      dateFormat: dateFormat.value,
-      aceEditorTheme: aceEditorTheme.value,
-    };
-
-    await api.update(data, [
-      "locale",
-      "hideDotfiles",
-      "singleClick",
-      "redirectAfterCopyMove",
-      "dateFormat",
-      "aceEditorTheme",
-    ]);
-    authStore.updateUser(data);
+    // Per-device preferences are stored in the browser (localStorage), not the
+    // server — the embed is single-user and stateless. setPref persists each
+    // and updates the in-memory user so the UI reacts immediately.
+    authStore.setPref("locale", locale.value);
+    authStore.setPref("hideDotfiles", hideDotfiles.value);
+    authStore.setPref("singleClick", singleClick.value);
+    authStore.setPref("redirectAfterCopyMove", redirectAfterCopyMove.value);
+    authStore.setPref("dateFormat", dateFormat.value);
+    authStore.setPref("aceEditorTheme", aceEditorTheme.value);
     $showSuccess(t("settings.settingsUpdated"));
   } catch (err) {
     if (err instanceof Error) {

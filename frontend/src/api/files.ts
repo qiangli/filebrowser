@@ -8,12 +8,20 @@ import { isEncodableResponse, makeRawResource } from "@/utils/encodings";
 export async function fetch(url: string, signal?: AbortSignal) {
   const encoding = isEncodableResponse(url);
   url = removePrefix(url);
-  const res = await fetchURL(`/api/resources${url}`, {
-    signal,
-    headers: {
-      "X-Encoding": encoding ? "true" : "false",
-    },
-  });
+  // hideDotfiles is a per-device preference (localStorage) but is enforced
+  // server-side, so echo the client's choice as a query param; the server
+  // honors it per-request (see http/auth.go withUser).
+  const hide = useAuthStore().user?.hideDotfiles ?? true;
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetchURL(
+    `/api/resources${url}${sep}dotfiles=${hide ? "hide" : "show"}`,
+    {
+      signal,
+      headers: {
+        "X-Encoding": encoding ? "true" : "false",
+      },
+    }
+  );
 
   let data: Resource;
   try {

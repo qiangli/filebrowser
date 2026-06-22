@@ -10,11 +10,9 @@
               {{ t("settings.profileSettings") }}
             </li></router-link
           >
-          <router-link to="/settings/global" v-if="user?.perm.admin"
-            ><li :class="{ active: $route.path === '/settings/global' }">
-              {{ t("settings.globalSettings") }}
-            </li></router-link
-          >
+          <!-- Global Settings is hidden in the embed: it manages server-wide
+               state (users, rules, branding) that a stateless single-user
+               File Browser does not persist. -->
         </ul>
       </div>
     </div>
@@ -35,7 +33,6 @@
 </template>
 
 <script setup lang="ts">
-import { useAuthStore } from "@/stores/auth";
 import { useLayoutStore } from "@/stores/layout";
 import HeaderBar from "@/components/header/HeaderBar.vue";
 import { computed } from "vue";
@@ -43,9 +40,7 @@ import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
-const authStore = useAuthStore();
 const layoutStore = useLayoutStore();
 
-const user = computed(() => authStore.user);
 const loading = computed(() => layoutStore.loading);
 </script>

@@ -106,6 +106,17 @@ func withUser(fn handleFunc) handleFunc {
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
+		// Per-request hide-dotfiles override. The single-user embed keeps this
+		// preference in the browser (localStorage) rather than the user record,
+		// so the client sends its choice as ?dotfiles=show|hide and it wins for
+		// this request only (d.user is a per-request copy). Absent the param,
+		// the server-side default applies — unchanged upstream behavior.
+		switch r.URL.Query().Get("dotfiles") {
+		case "show":
+			d.user.HideDotfiles = false
+		case "hide":
+			d.user.HideDotfiles = true
+		}
 		return fn(w, r, d)
 	}
 }

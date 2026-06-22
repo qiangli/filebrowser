@@ -345,7 +345,7 @@ import { useClipboardStore } from "@/stores/clipboard";
 import { useFileStore } from "@/stores/file";
 import { useLayoutStore } from "@/stores/layout";
 
-import { users, files as api } from "@/api";
+import { files as api } from "@/api";
 import { enableExec } from "@/utils/constants";
 import * as upload from "@/utils/upload";
 import css from "@/utils/css";
@@ -936,15 +936,8 @@ const sort = async (by: string) => {
     }
   }
 
-  try {
-    if (authStore.user?.id) {
-      await users.update({ id: authStore.user?.id, sorting: { by, asc } }, [
-        "sorting",
-      ]);
-    }
-  } catch (e: any) {
-    $showError(e);
-  }
+  // Sorting is a per-device preference (localStorage), not server state.
+  authStore.setPref("sorting", { by, asc });
 
   fileStore.reload = true;
 };
@@ -1012,15 +1005,11 @@ const switchView = async () => {
     "mosaic gallery": "list",
   };
 
-  const data = {
-    id: authStore.user?.id,
-    viewMode: (modes[authStore.user?.viewMode ?? "list"] ||
-      "list") as ViewModeType,
-  };
+  const newMode = (modes[authStore.user?.viewMode ?? "list"] ||
+    "list") as ViewModeType;
 
-  users.update(data, ["viewMode"]).catch($showError);
-
-  authStore.updateUser(data);
+  // View mode is a per-device preference (localStorage), not server state.
+  authStore.setPref("viewMode", newMode);
 
   setItemWeight();
   fillWindow();
