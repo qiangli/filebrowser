@@ -12,6 +12,11 @@
 
 <script setup lang="ts">
 import { type SelectHTMLAttributes } from "vue";
+// ext-themelist is an ace extension that references the global `ace`, so the
+// ace-builds core (which defines it) MUST be imported first. Without this the
+// extension can evaluate before core depending on chunk order and throw
+// "ace is not defined", breaking app bootstrap.
+import "ace-builds";
 import { themes } from "ace-builds/src-noconflict/ext-themelist";
 
 defineProps<{
