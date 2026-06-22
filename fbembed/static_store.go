@@ -3,6 +3,7 @@ package fbembed
 import (
 	"github.com/filebrowser/filebrowser/v2/auth"
 	fberrors "github.com/filebrowser/filebrowser/v2/errors"
+	"github.com/filebrowser/filebrowser/v2/rules"
 	"github.com/filebrowser/filebrowser/v2/settings"
 	"github.com/filebrowser/filebrowser/v2/share"
 	"github.com/filebrowser/filebrowser/v2/storage"
@@ -37,6 +38,7 @@ func newStaticStorage(scope string, allowWrite bool, key []byte) (*storage.Stora
 		ViewMode:     users.MosaicViewMode,
 		Perm:         permissions(allowWrite),
 		HideDotfiles: true,
+		Commands:     []string{},
 	}
 	user := &users.User{ID: 1, Username: "admin", Password: hashed, LockPassword: true}
 	defaults.Apply(user)
@@ -51,6 +53,13 @@ func newStaticStorage(scope string, allowWrite bool, key []byte) (*storage.Stora
 		Defaults:              defaults,
 		AuthMethod:            auth.MethodNoAuth,
 		HideDotfiles:          true,
+		// Non-nil collections so the settings payload is well-formed. The
+		// DB path used to fill these in Settings.Save; statelessly we set
+		// them here. (A nil Commands map made GET /api/settings serialize
+		// `commands: null`, which crashed any client doing Object.keys.)
+		Commands: map[string][]string{},
+		Shell:    []string{},
+		Rules:    []rules.Rule{},
 		Tus: settings.Tus{
 			ChunkSize:  settings.DefaultTusChunkSize,
 			RetryCount: settings.DefaultTusRetryCount,

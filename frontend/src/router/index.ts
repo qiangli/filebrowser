@@ -3,7 +3,6 @@ import { createRouter, createWebHistory } from "vue-router";
 import Layout from "@/views/Layout.vue";
 import Files from "@/views/Files.vue";
 import Settings from "@/views/Settings.vue";
-import GlobalSettings from "@/views/settings/Global.vue";
 import ProfileSettings from "@/views/settings/Profile.vue";
 import Errors from "@/views/Errors.vue";
 import { baseURL, name } from "@/utils/constants";
@@ -15,7 +14,6 @@ const titles = {
   Files: "files.files",
   Settings: "sidebar.settings",
   ProfileSettings: "settings.profileSettings",
-  GlobalSettings: "settings.globalSettings",
   Forbidden: "errors.forbidden",
   NotFound: "errors.notFound",
   InternalServerError: "errors.internal",
@@ -51,9 +49,13 @@ const routes = [
             component: ProfileSettings,
           },
           {
+            // Global Settings is unsupported in the stateless single-user
+            // embed — it manages server-wide state (users, rules, branding)
+            // the embed doesn't keep, and the embed can't distinguish owner
+            // from a shared viewer. Redirect any direct/bookmarked link to
+            // Profile instead of rendering a broken page.
             path: "global",
-            name: "GlobalSettings",
-            component: GlobalSettings,
+            redirect: { path: "/settings/profile" },
           },
         ],
       },

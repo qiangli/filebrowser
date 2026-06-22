@@ -2,6 +2,7 @@ package fbembed
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"net/http"
@@ -178,5 +179,47 @@ func TestEmbedPrefixContract(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `"BaseURL":"`+prefix+`"`) {
 		t.Errorf("index did not render BaseURL from X-Forwarded-Prefix (%q)", prefix)
+	}
+}
+
+// TestSettingsPayloadWellFormed guards GET /api/settings against null
+// collection fields. The stateless settings backend must initialize the
+// maps/slices the DB path used to fill in Settings.Save — a nil Commands
+// map serialized as `commands: null` and crashed clients doing Object.keys
+// (the File Browser Global Settings page hit exactly that).
+func TestSettingsPayloadWellFormed(t *testing.T) {
+	dir := t.TempDir()
+	h, closer, err := New(Options{Scope: dir})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closer()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	tok := login(t, srv.URL)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/settings", nil)
+	req.Header.Set("X-Auth", tok)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/settings: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/settings = %d, want 200", resp.StatusCode)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode settings: %v", err)
+	}
+	for _, field := range []string{"commands", "shell", "rules"} {
+		raw, ok := payload[field]
+		if !ok {
+			t.Errorf("settings missing %q", field)
+			continue
+		}
+		if string(raw) == "null" {
+			t.Errorf("settings.%s is null — must be an initialized collection", field)
+		}
 	}
 }
