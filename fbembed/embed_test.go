@@ -1,13 +1,91 @@
 package fbembed
 
 import (
+	"bytes"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
+
+// noSeekFile embeds the fs.File interface (Stat/Read/Close only), so the
+// concrete value does NOT satisfy io.Seeker even if the wrapped file does.
+type noSeekFile struct{ fs.File }
+
+// seekProbeFS overlays one non-seekable asset with a deliberately-unknown
+// extension on top of the real SPA FS. That pair — non-seekable + no MIME
+// type for the extension — is exactly what makes http.ServeContent's
+// content sniff seek back to 0 and fail with "seeker can't seek". On
+// Windows the embedded web fonts hit this (the registry has no .woff2
+// type); the synthetic asset reproduces it deterministically on every OS.
+type seekProbeFS struct {
+	base  fs.FS
+	probe string
+	mem   fs.FS
+}
+
+func (o seekProbeFS) Open(name string) (fs.File, error) {
+	if name == o.probe {
+		f, err := o.mem.Open(name)
+		if err != nil {
+			return nil, err
+		}
+		return noSeekFile{f}, nil
+	}
+	return o.base.Open(name)
+}
+
+// TestStaticAssetServedWithoutSeek guards the static handler against
+// requiring a seekable asset. The SPA assets live in an embedded
+// *zip.Reader; on Windows a zip entry is served as a non-seekable file
+// and, because the registry has no MIME type for .woff2/.woff, ServeContent
+// sniffs the body and seeks back to 0 — which 500s with "seeker can't
+// seek" and blanked every web font (icons + latin), wrecking the page. The
+// handler now reads each non-.js asset into a bytes.Reader (always
+// seekable), so the asset serves 200 even when the source file cannot seek
+// and the extension is unknown. seekProbeFS reproduces that exact pair on
+// any platform, so this fails without the fix off Windows too.
+func TestStaticAssetServedWithoutSeek(t *testing.T) {
+	const probe = "assets/zz-seekprobe.seektest" // unknown ext → forces content sniff + seek-back
+	body := append([]byte("SEEKPROBE-BODY"), make([]byte, 1024)...)
+	mem := fstest.MapFS{probe: &fstest.MapFile{Data: body}}
+
+	orig := assetsSource
+	assetsSource = func() (fs.FS, error) {
+		base, err := orig()
+		if err != nil {
+			return nil, err
+		}
+		return seekProbeFS{base: base, probe: probe, mem: mem}, nil
+	}
+	defer func() { assetsSource = orig }()
+
+	dir := t.TempDir()
+	h, closer, err := New(Options{Scope: dir, DBPath: filepath.Join(dir, "fb.db"), AllowWrite: false})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closer()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/static/" + probe)
+	if err != nil {
+		t.Fatalf("GET %s: %v", probe, err)
+	}
+	defer resp.Body.Close()
+	got, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /static/%s = %d (%s), want 200 — a non-seekable asset with an unknown extension must still serve", probe, resp.StatusCode, strings.TrimSpace(string(got)))
+	}
+	if !bytes.Equal(got, body) {
+		t.Errorf("served body mismatch: got %d bytes, want %d", len(got), len(body))
+	}
+}
 
 // login hits NoAuth /api/login and returns the JWT the SPA sends as X-Auth.
 func login(t *testing.T, base string) string {

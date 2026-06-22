@@ -33,3 +33,9 @@ func distFS() (fs.FS, error) {
 	}
 	return zr, nil
 }
+
+// assetsSource is the SPA asset FS New() serves from. It is a variable
+// solely so tests can inject a wrapper (e.g. a non-seekable FS that
+// reproduces the Windows zip-serving behavior on any platform). Production
+// always uses distFS.
+var assetsSource = distFS

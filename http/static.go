@@ -1,6 +1,7 @@
 package fbhttp
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"errors"
@@ -9,11 +10,13 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/filebrowser/filebrowser/v2/auth"
 	"github.com/filebrowser/filebrowser/v2/settings"
@@ -156,8 +159,49 @@ func getStaticHandlers(store *storage.Storage, server *settings.Server, assetsFs
 			}
 		}
 
+		// Non-.js assets (css, fonts, svg, images, …) are served verbatim.
+		// assetsFs is a *zip.Reader, and a DEFLATE-compressed entry yields a
+		// non-seekable fs.File. http.FileServer → http.ServeContent needs an
+		// io.Seeker to size the body, so a compressed entry 500s with
+		// "seeker can't seek" (this broke every DEFLATE-stored asset — most
+		// visibly the icon/latin web fonts). Read the asset into memory and
+		// serve it from a bytes.Reader, which is always seekable, so every
+		// asset renders regardless of its zip compression method.
 		if !strings.HasSuffix(r.URL.Path, ".js") {
-			http.FileServer(http.FS(assetsFs)).ServeHTTP(w, r)
+			f, err := assetsFs.Open(r.URL.Path)
+			if err != nil {
+				return http.StatusNotFound, err
+			}
+			defer f.Close()
+
+			body, err := io.ReadAll(f)
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
+
+			ctype := mime.TypeByExtension(path.Ext(r.URL.Path))
+			if ctype == "" {
+				// Go's builtin mime table omits web fonts, and a minimal
+				// Windows host may have no registry entry either; set them
+				// explicitly so the browser accepts the @font-face source.
+				switch strings.ToLower(path.Ext(r.URL.Path)) {
+				case ".woff2":
+					ctype = "font/woff2"
+				case ".woff":
+					ctype = "font/woff"
+				case ".ttf":
+					ctype = "font/ttf"
+				}
+			}
+			if ctype != "" {
+				w.Header().Set("Content-Type", ctype)
+			}
+
+			var modTime time.Time
+			if info, err := f.Stat(); err == nil {
+				modTime = info.ModTime()
+			}
+			http.ServeContent(w, r, path.Base(r.URL.Path), modTime, bytes.NewReader(body))
 			return 0, nil
 		}
 

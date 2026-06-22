@@ -131,7 +131,7 @@ func New(opts Options) (handler http.Handler, closer func() error, err error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("fbembed: upload cache: %w", err)
 	}
-	assets, err := distFS()
+	assets, err := assetsSource()
 	if err != nil {
 		return nil, nil, err
 	}
