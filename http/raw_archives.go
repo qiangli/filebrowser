@@ -64,3 +64,12 @@ func parseQueryAlgorithm(r *http.Request) (string, archives.Archival, error) {
 		return "", nil, errUnsupportedAlgorithm
 	}
 }
+
+// ArchiveFormats reports the `algo` values this build accepts for a folder
+// download, in a stable order. See the default build's copy in raw_stdlib.go
+// for why this is exported.
+//
+// -tags fb_archives: the full set.
+func ArchiveFormats() []string {
+	return []string{"zip", "tar", "targz", "tarbz2", "tarxz", "tarlz4", "tarsz", "tarbr", "tarzst"}
+}

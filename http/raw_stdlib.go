@@ -116,3 +116,15 @@ func copyEntry(dst io.Writer, e archiveEntry) error {
 	_, err = io.Copy(dst, src)
 	return err
 }
+
+// ArchiveFormats reports the `algo` values this build accepts for a folder
+// download, in a stable order. It exists so an embedder can ASSERT its
+// download contract in a test instead of trusting that the right build tag
+// was passed — a build tag is silent when it is missing, and the whole point
+// of splitting this file was to make the reduced set a deliberate choice
+// rather than an accident.
+//
+// Default build: the standard-library set. See resolveArchiver.
+func ArchiveFormats() []string {
+	return []string{"zip", "tar", "targz"}
+}
