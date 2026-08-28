@@ -1,7 +1,9 @@
 package fbhttp
 
 import (
+	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -13,8 +15,24 @@ import (
 	"github.com/filebrowser/filebrowser/v2/files"
 	"github.com/filebrowser/filebrowser/v2/fileutils"
 	"github.com/filebrowser/filebrowser/v2/users"
-	"github.com/mholt/archives"
 )
+
+// archiveEntry is one member of a folder download, independent of which
+// archiver writes it.
+//
+// It exists so the traversal below — including the zip-slip fix — lives in ONE
+// place while the WRITER varies by build tag: the default build serves
+// zip/tar/tar.gz from the standard library, and -tags fb_archives adds the
+// remaining formats via github.com/mholt/archives (~50 packages).
+type archiveEntry struct {
+	Info          fs.FileInfo
+	NameInArchive string
+	Open          func() (fs.File, error)
+}
+
+// errUnsupportedAlgorithm is returned for a format this build cannot write.
+var errUnsupportedAlgorithm = errors.New(
+	"filebrowser: this build writes zip, tar and tar.gz; rebuild with -tags fb_archives for bz2/xz/lz4/sz/br/zst")
 
 func slashClean(name string) string {
 	if name == "" || name[0] != '/' {
@@ -42,31 +60,6 @@ func parseQueryFiles(r *http.Request, f *files.FileInfo, _ *users.User) ([]strin
 	}
 
 	return fileSlice, nil
-}
-
-func parseQueryAlgorithm(r *http.Request) (string, archives.Archival, error) {
-	switch r.URL.Query().Get("algo") {
-	case "zip", "true", "":
-		return ".zip", archives.Zip{}, nil
-	case "tar":
-		return ".tar", archives.Tar{}, nil
-	case "targz":
-		return ".tar.gz", archives.CompressedArchive{Compression: archives.Gz{}, Archival: archives.Tar{}}, nil
-	case "tarbz2":
-		return ".tar.bz2", archives.CompressedArchive{Compression: archives.Bz2{}, Archival: archives.Tar{}}, nil
-	case "tarxz":
-		return ".tar.xz", archives.CompressedArchive{Compression: archives.Xz{}, Archival: archives.Tar{}}, nil
-	case "tarlz4":
-		return ".tar.lz4", archives.CompressedArchive{Compression: archives.Lz4{}, Archival: archives.Tar{}}, nil
-	case "tarsz":
-		return ".tar.sz", archives.CompressedArchive{Compression: archives.Sz{}, Archival: archives.Tar{}}, nil
-	case "tarbr":
-		return ".tar.br", archives.CompressedArchive{Compression: archives.Brotli{}, Archival: archives.Tar{}}, nil
-	case "tarzst":
-		return ".tar.zst", archives.CompressedArchive{Compression: archives.Zstd{}, Archival: archives.Tar{}}, nil
-	default:
-		return "", nil, errors.New("format not implemented")
-	}
 }
 
 func setContentDisposition(w http.ResponseWriter, r *http.Request, file *files.FileInfo) {
@@ -109,7 +102,7 @@ var rawHandler = withUser(func(w http.ResponseWriter, r *http.Request, d *data) 
 	return rawDirHandler(w, r, d, file)
 })
 
-func getFiles(d *data, path, commonPath string) ([]archives.FileInfo, error) {
+func getFiles(d *data, path, commonPath string) ([]archiveEntry, error) {
 	if !d.Check(path) {
 		return nil, nil
 	}
@@ -119,7 +112,7 @@ func getFiles(d *data, path, commonPath string) ([]archives.FileInfo, error) {
 		return nil, err
 	}
 
-	var archiveFiles []archives.FileInfo
+	var archiveFiles []archiveEntry
 
 	if path != commonPath {
 		nameInArchive := strings.TrimPrefix(path, commonPath)
@@ -132,8 +125,8 @@ func getFiles(d *data, path, commonPath string) ([]archives.FileInfo, error) {
 		// Strip Windows separators regardless of host OS.
 		nameInArchive = strings.ReplaceAll(nameInArchive, "\\", "/")
 
-		archiveFiles = append(archiveFiles, archives.FileInfo{
-			FileInfo:      info,
+		archiveFiles = append(archiveFiles, archiveEntry{
+			Info:          info,
 			NameInArchive: nameInArchive,
 			Open: func() (fs.File, error) {
 				return d.user.Fs.Open(path)
@@ -173,14 +166,14 @@ func rawDirHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.
 		return http.StatusInternalServerError, err
 	}
 
-	extension, archiver, err := parseQueryAlgorithm(r)
+	extension, write, err := resolveArchiver(r)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 
 	commonDir := fileutils.CommonPrefix(filepath.Separator, filenames...)
 
-	var allFiles []archives.FileInfo
+	var allFiles []archiveEntry
 	for _, fname := range filenames {
 		archiveFiles, err := getFiles(d, fname, commonDir)
 		if err != nil {
@@ -208,7 +201,7 @@ func rawDirHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.
 	name += extension
 	w.Header().Set("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
 
-	if err := archiver.Archive(r.Context(), w, allFiles); err != nil {
+	if err := write(r.Context(), w, allFiles); err != nil {
 		return http.StatusInternalServerError, err
 	}
 
@@ -229,3 +222,6 @@ func rawFileHandler(w http.ResponseWriter, r *http.Request, file *files.FileInfo
 	http.ServeContent(w, r, file.Name, file.ModTime, fd)
 	return 0, nil
 }
+
+// archiveWriter streams entries into w.
+type archiveWriter func(ctx context.Context, w io.Writer, entries []archiveEntry) error

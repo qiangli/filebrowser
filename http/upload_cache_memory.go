@@ -79,6 +79,8 @@ func (c *memoryUploadCache) Close() {
 // The redisURL can include credentials, e.g. redis://user:pass@host:port
 func NewUploadCache(redisURL string) (UploadCache, error) {
 	if redisURL != "" {
+		// Only compiled in under -tags fb_redis; the default build refuses
+		// rather than silently downgrading to the in-memory cache.
 		return newRedisUploadCache(redisURL)
 	}
 	return newMemoryUploadCache(), nil

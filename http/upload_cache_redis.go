@@ -1,3 +1,14 @@
+// Redis-backed upload cache — build-tagged OUT by default.
+//
+// go-redis pulls ~15 packages that nothing in a single-instance deployment
+// touches: NewUploadCache only reaches this file when a redis URL is configured,
+// and the embedded seam (fbembed) always passes "". Building it unconditionally
+// therefore charged every embedder for a multi-replica feature they cannot use.
+//
+// Build with `-tags fb_redis` to get it back.
+
+//go:build fb_redis
+
 package fbhttp
 
 import (
@@ -15,7 +26,7 @@ type redisUploadCache struct {
 	client *redis.Client
 }
 
-func newRedisUploadCache(redisURL string) (*redisUploadCache, error) {
+func newRedisUploadCache(redisURL string) (UploadCache, error) {
 	if redisURL == "" {
 		return nil, fmt.Errorf("redis URL is required")
 	}
