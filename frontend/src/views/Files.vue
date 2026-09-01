@@ -4,6 +4,7 @@
       v-if="error || fileStore.req?.type === undefined"
       showMenu
       showLogo
+      showApps
     />
 
     <breadcrumbs base="/files" />

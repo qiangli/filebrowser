@@ -1,6 +1,6 @@
 <template>
   <div>
-    <header-bar showMenu showLogo>
+    <header-bar showMenu showLogo showApps>
       <search />
       <title />
       <action
@@ -464,8 +464,8 @@ const modifiedIcon = computed(() => {
 
 const viewIcon = computed(() => {
   const icons = {
-    list: "view_module",
-    mosaic: "grid_view",
+    list: "view_quilt",
+    mosaic: "photo_library",
     "mosaic gallery": "view_list",
   };
   return authStore.user === null

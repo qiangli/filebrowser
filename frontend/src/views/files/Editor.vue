@@ -1,6 +1,6 @@
 <template>
   <div id="editor-container">
-    <header-bar>
+    <header-bar showApps>
       <action icon="close" :label="t('buttons.close')" @action="close()" />
       <title>{{ fileStore.req?.name ?? "" }}</title>
 

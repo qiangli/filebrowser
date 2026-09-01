@@ -31,6 +31,17 @@
       v-show="layoutStore.currentPromptName == 'more'"
       @click="layoutStore.closeHovers"
     />
+
+    <a
+      v-if="showApps"
+      class="action apps-button"
+      href="../"
+      :aria-label="t('buttons.apps')"
+      :title="t('buttons.apps')"
+    >
+      <i class="material-icons">apps</i>
+      <span>{{ t("buttons.apps") }}</span>
+    </a>
   </header>
 </template>
 
@@ -46,6 +57,7 @@ import { useI18n } from "vue-i18n";
 defineProps<{
   showLogo?: boolean;
   showMenu?: boolean;
+  showApps?: boolean;
 }>();
 
 const layoutStore = useLayoutStore();

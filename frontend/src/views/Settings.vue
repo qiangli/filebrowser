@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <header-bar showMenu showLogo />
+    <header-bar showMenu showLogo showApps />
 
     <div id="nav">
       <div class="wrapper">
