@@ -35,12 +35,28 @@
     <a
       v-if="showApps"
       class="action apps-button"
-      href="../"
+      :href="appsHref"
       :aria-label="t('buttons.apps')"
       :title="t('buttons.apps')"
     >
-      <i class="material-icons">apps</i>
-      <span>{{ t("buttons.apps") }}</span>
+      <!-- The console's own all-apps mark, four rounded squares. Copied in
+           shape (not imported) because this SPA is MOUNTED rather than served
+           through the console's chrome injection, so it never receives
+           #all-apps-btn and has to carry the same mark itself. -->
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </svg>
     </a>
   </header>
 </template>
@@ -48,7 +64,7 @@
 <script setup lang="ts">
 import { useLayoutStore } from "@/stores/layout";
 
-import { logoURL } from "@/utils/constants";
+import { baseURL, logoURL } from "@/utils/constants";
 
 import Action from "@/components/header/Action.vue";
 import { computed, useSlots } from "vue";
@@ -62,6 +78,17 @@ defineProps<{
 
 const layoutStore = useLayoutStore();
 const slots = useSlots();
+
+// The launcher is the PARENT of this SPA's mount, not the parent of whatever
+// route happens to be open. A bare parent-relative link, resolved against a
+// route such as /files/files/<path>, lands back on the files app itself --
+// which is exactly what it did. baseURL is the mount prefix the console gave
+// us, so strip its last segment instead of guessing from the URL.
+const appsHref = computed(() => {
+  const base = (baseURL || "/").replace(/\/+$/, "");
+  const parent = base.slice(0, base.lastIndexOf("/") + 1);
+  return parent || "/";
+});
 
 const { t } = useI18n();
 

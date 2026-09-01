@@ -15,7 +15,18 @@ describe("files header contract", () => {
   it("keeps the Apps return control rightmost", () => {
     expect(header).toContain('v-if="showApps"');
     expect(header).toContain('class="action apps-button"');
-    expect(header).toContain('href="../"');
+    // It must carry the CONSOLE's all-apps mark — four rounded squares — not a
+    // material-icons glyph, so Files looks like every other app's return
+    // control. This SPA is mounted rather than chrome-injected, so it never
+    // receives #all-apps-btn and has to draw the same mark itself.
+    expect(header).toContain('rx="1.5"');
+    expect((header.match(/<rect /g) || []).length).toBe(4);
+    expect(header).not.toContain('material-icons">apps<');
+    // And it must leave THIS app. A bare href="../" resolved against a route
+    // like /files/files/<path> lands back on the files app, which is the bug.
+    expect(header).not.toContain('href="../"');
+    expect(header).toContain(":href=\"appsHref\"");
+    expect(header).toContain("baseURL");
     expect(header.lastIndexOf("apps-button")).toBeGreaterThan(
       header.lastIndexOf('id="more"')
     );
