@@ -44,6 +44,7 @@
            through the console's chrome injection, so it never receives
            #all-apps-btn and has to carry the same mark itself. -->
       <svg
+        class="apps-mark"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

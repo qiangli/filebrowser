@@ -109,6 +109,21 @@ main .spinner .bounce2 {
   border-radius: 50%;
 }
 
+/* The Apps return control draws the console's four-square mark as inline SVG
+   instead of an icon font. `.action i` gets its box from the font's own
+   metrics, which an <svg> has none of — without an explicit box it collapses
+   and the control disappears entirely. Same padding and hover shape as `i`, so
+   it sits in the row identically. */
+.action .apps-mark {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.4em;
+  box-sizing: content-box;
+  transition: 0.1s ease-in-out all;
+  border-radius: 50%;
+}
+
 .action:hover {
   background-color: var(--hover);
 }
