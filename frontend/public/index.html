@@ -46,6 +46,43 @@
     <script>
       // We can assign JSON directly
       window.FileBrowser = [{[ .Json ]}];
+
+      // Follow the bashy console's theme.
+      //
+      // File Browser themes itself from its OWN server-side setting, falling
+      // back to the media preference — so mounted inside the console at /files/
+      // it ignored the console's choice entirely and could sit in dark while
+      // every other app was light.
+      //
+      // The console stores the choice under its own key on the SAME ORIGIN (the
+      // panel is mounted, not a separate site) and puts data-theme on <html>.
+      // This app's getTheme() reads documentElement.className, so writing the
+      // resolved theme there before the app boots is all it takes: App.vue
+      // picks it up and keeps it.
+      //
+      // Inline and ahead of the bundle deliberately — applied later, the wrong
+      // theme would paint first.
+      (() => {
+        const KEY = "bashy.apps.config";        // webconsole app.js CFG_KEY
+        const resolve = () => {
+          let choice = "system";
+          try {
+            choice = JSON.parse(localStorage.getItem(KEY) || "{}").theme || "system";
+          } catch (_) {
+            // A blocked or corrupt store must not leave the page unthemed;
+            // "system" is the console's own fallback too.
+          }
+          if (choice === "light" || choice === "dark") return choice;
+          return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        };
+        const apply = () => {
+          const t = resolve();
+          document.documentElement.className = t;
+          document.documentElement.setAttribute("data-theme", t);
+        };
+        apply();
+        addEventListener("storage", (e) => { if (e.key === KEY) apply(); });
+      })();
       // Global function to prepend static url
       window.__prependStaticUrl = (url) => {
         return `${window.FileBrowser.StaticURL}/${url.replace(/^\/+/, "")}`;
