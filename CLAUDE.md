@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**`bashy sprint` is the source of requests, plans and details for every agent** — every todo is tracked and accounted for as a STORY in a sprint: read the sprint card (spec-ref, acceptance, continuity) for what to do, and never pick up a todo without a story in a `bashy sprint` (file one first). Delivery commits carry `Sprint:` / `Story:` / `Story-ID:` trailers.
+
 ## What this is
 
 File Browser is a **single self-contained Go binary** that serves a web file-management UI for a directory on disk. The Vue 3 frontend is built into static assets and embedded into the Go binary at compile time (`frontend/assets.go` embeds `frontend/dist/` via `go:embed`), so a release build requires building the frontend *first*, then the backend. The project is officially in **maintenance-only** mode (bug/security fixes, no new features).
