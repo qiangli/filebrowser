@@ -3,13 +3,21 @@ package users
 import (
 	"embed"
 	"strings"
+	"sync"
 )
 
 //go:embed assets
 var assets embed.FS
 var commonPasswords map[string]struct{}
+var commonPasswordsOnce sync.Once
 
-func init() {
+func isCommonPassword(password string) bool {
+	commonPasswordsOnce.Do(loadCommonPasswords)
+	_, ok := commonPasswords[password]
+	return ok
+}
+
+func loadCommonPasswords() {
 	// Password list sourced from:
 	// https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt
 	data, err := assets.ReadFile("assets/common-passwords.txt")

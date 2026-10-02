@@ -15,7 +15,7 @@ func ValidateAndHashPwd(password string, minimumLength uint) (string, error) {
 		return "", fberrors.ErrShortPassword{MinimumLength: minimumLength}
 	}
 
-	if _, ok := commonPasswords[password]; ok {
+	if isCommonPassword(password) {
 		return "", fberrors.ErrEasyPassword
 	}
 
