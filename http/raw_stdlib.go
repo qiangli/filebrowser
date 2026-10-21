@@ -18,8 +18,8 @@ import (
 // LIBRARY: zip, tar and tar.gz cover what a browser download actually needs, and
 // they cost zero extra packages.
 //
-// github.com/mholt/archives adds bz2/xz/lz4/sz/br/zst and brings ~50 packages
-// with it (sevenzip, klauspost, dsnet, pierrec, ulikunitz, brotli, ppmd, minlz).
+// Building with -tags fb_archives adds bz2/xz/lz4/sz/br/zst via permissive
+// compression libraries (dsnet, ulikunitz, pierrec, klauspost, brotli).
 // That is a real capability, but it is an ARCHIVING capability rather than a
 // file-browsing one, so it is opt-in here and belongs to a general-purpose
 // archive tool rather than to every process that embeds a file browser.

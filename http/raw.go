@@ -23,7 +23,7 @@ import (
 // It exists so the traversal below — including the zip-slip fix — lives in ONE
 // place while the WRITER varies by build tag: the default build serves
 // zip/tar/tar.gz from the standard library, and -tags fb_archives adds the
-// remaining formats via github.com/mholt/archives (~50 packages).
+// remaining formats via permissive compression packages (bz2/xz/lz4/sz/br/zst).
 type archiveEntry struct {
 	Info          fs.FileInfo
 	NameInArchive string
