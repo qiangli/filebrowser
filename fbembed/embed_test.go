@@ -223,3 +223,46 @@ func TestSettingsPayloadWellFormed(t *testing.T) {
 		}
 	}
 }
+
+// TestSettingsPutDoesNotPersist guards the stateless contract: an admin PUT
+// to /api/settings must not change what later requests see (Save is a no-op,
+// and Get hands each request its own copy).
+func TestSettingsPutDoesNotPersist(t *testing.T) {
+	h, closer, err := New(Options{Scope: t.TempDir()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closer()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	tok := login(t, srv.URL)
+
+	body := `{"signup":true,"shell":["sh","-c"],"commands":{"after_upload":["touch pwned"]},"rules":[{"regex":false,"allow":false,"path":"/x"}]}`
+	req, _ := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(body))
+	req.Header.Set("X-Auth", tok)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT /api/settings: %v", err)
+	}
+	resp.Body.Close()
+
+	req, _ = http.NewRequest(http.MethodGet, srv.URL+"/api/settings", nil)
+	req.Header.Set("X-Auth", tok)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/settings: %v", err)
+	}
+	defer resp.Body.Close()
+	var got struct {
+		Signup   bool                `json:"signup"`
+		Shell    []string            `json:"shell"`
+		Commands map[string][]string `json:"commands"`
+		Rules    []json.RawMessage   `json:"rules"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode settings: %v", err)
+	}
+	if got.Signup || len(got.Shell) != 0 || len(got.Commands) != 0 || len(got.Rules) != 0 {
+		t.Fatalf("PUT leaked into later requests: %+v", got)
+	}
+}

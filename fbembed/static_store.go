@@ -116,7 +116,23 @@ type staticSettings struct {
 	server   *settings.Server
 }
 
-func (s *staticSettings) Get() (*settings.Settings, error)     { return s.settings, nil }
+// Get returns a per-request copy so a settings PUT (which assigns fields
+// before its no-op Save) cannot change the canonical settings or race other
+// requests. The reference fields are copied too, so no request can mutate
+// them in place.
+func (s *staticSettings) Get() (*settings.Settings, error) {
+	c := *s.settings
+	c.Shell = make([]string, len(s.settings.Shell))
+	copy(c.Shell, s.settings.Shell)
+	c.Rules = make([]rules.Rule, len(s.settings.Rules))
+	copy(c.Rules, s.settings.Rules)
+	c.Commands = make(map[string][]string, len(s.settings.Commands))
+	for k, v := range s.settings.Commands {
+		c.Commands[k] = append([]string(nil), v...)
+	}
+	return &c, nil
+}
+
 func (s *staticSettings) Save(*settings.Settings) error        { return nil }
 func (s *staticSettings) GetServer() (*settings.Server, error) { return s.server, nil }
 func (s *staticSettings) SaveServer(*settings.Server) error    { return nil }
