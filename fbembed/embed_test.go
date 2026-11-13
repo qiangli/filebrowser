@@ -2,6 +2,7 @@ package fbembed
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -179,6 +180,109 @@ func TestEmbedPrefixContract(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `"BaseURL":"`+prefix+`"`) {
 		t.Errorf("index did not render BaseURL from X-Forwarded-Prefix (%q)", prefix)
+	}
+}
+
+// TestAceModulesServedFromEmbed guards the no-phone-home editor (S2c): the
+// editor's basePath points at /static/ace/ (Editor.vue), so the modes,
+// themes, workers and snippets Ace loads on demand must ship inside the
+// embedded dist.zip and serve from this origin — never a public CDN, which
+// would phone-home and break offline.
+func TestAceModulesServedFromEmbed(t *testing.T) {
+	h, closer, err := New(Options{Scope: t.TempDir()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer closer()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	for _, name := range []string{
+		"mode-golang.js", // language mode loaded on demand via modelist
+		"theme-github.js", // theme picked in Profile settings / getEditorTheme fallback
+		"worker-base.js",  // syntax worker bootstrap
+		"snippets/golang.js", // snippet file (enableSnippets)
+	} {
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/static/ace/"+name, nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET %s: %v", name, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET /static/ace/%s = %d (%s), want 200", name, resp.StatusCode, strings.TrimSpace(string(body)))
+			continue
+		}
+		if !strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
+			t.Errorf("GET /static/ace/%s: Content-Encoding = %q, want gzip", name, resp.Header.Get("Content-Encoding"))
+		}
+	}
+}
+
+// TestEmbeddedAppBundlesHaveNoCDNOrigin decompresses every app bundle in
+// the embedded dist and fails if a third-party CDN origin appears: the
+// editor must load its Ace modules from this origin, not jsdelivr & co.
+// The vendored ace/ tree is skipped: it is local third-party data, and its
+// snippet templates legitimately contain example URLs (e.g. html5shiv on
+// cdnjs) as expandable text — nothing in it is fetched at runtime.
+func TestEmbeddedAppBundlesHaveNoCDNOrigin(t *testing.T) {
+	dist, err := assetsSource()
+	if err != nil {
+		t.Fatalf("open embedded dist: %v", err)
+	}
+	forbidden := []string{
+		"cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com",
+		"fonts.googleapis.com", "fonts.gstatic.com",
+	}
+	check := func(name string, body []byte) {
+		for _, host := range forbidden {
+			if bytes.Contains(body, []byte(host)) {
+				t.Errorf("%s references %s — bundle must ship its runtime modules locally", name, host)
+			}
+		}
+	}
+	err = fs.WalkDir(dist, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		switch {
+		case strings.HasPrefix(path, "ace/"):
+			return nil // vendored data, see comment
+		case strings.HasSuffix(path, ".js.gz"):
+			f, err := dist.Open(path)
+			if err != nil {
+				return err
+			}
+			zr, err := gzip.NewReader(f)
+			if err != nil {
+				f.Close()
+				return err
+			}
+			body, err := io.ReadAll(zr)
+			zr.Close()
+			f.Close()
+			if err != nil {
+				return err
+			}
+			check(path, body)
+		case strings.HasSuffix(path, ".gz"), strings.HasSuffix(path, ".br"),
+			strings.HasSuffix(path, ".woff2"), strings.HasSuffix(path, ".woff"),
+			strings.HasSuffix(path, ".ttf"), strings.HasSuffix(path, ".png"),
+			strings.HasSuffix(path, ".ico"), strings.HasSuffix(path, ".svg"):
+			return nil // binary or duplicate encoding
+		default:
+			body, err := fs.ReadFile(dist, path)
+			if err != nil {
+				return err
+			}
+			check(path, body)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk embedded dist: %v", err)
 	}
 }
 

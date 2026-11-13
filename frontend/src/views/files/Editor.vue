@@ -81,7 +81,7 @@
 import { files as api } from "@/api";
 import buttons from "@/utils/buttons";
 import url from "@/utils/url";
-import ace, { Ace, version as ace_version } from "ace-builds";
+import ace, { Ace } from "ace-builds";
 import "ace-builds/src-noconflict/ext-language_tools";
 import modelist from "ace-builds/src-noconflict/ext-modelist";
 import DOMPurify from "dompurify";
@@ -92,6 +92,7 @@ import HeaderBar from "@/components/header/HeaderBar.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useFileStore } from "@/stores/file";
 import { useLayoutStore } from "@/stores/layout";
+import { staticURL } from "@/utils/constants";
 import { getEditorTheme } from "@/utils/theme";
 import { marked } from "marked";
 import markedKatex from "marked-katex-extension";
@@ -172,10 +173,10 @@ onMounted(() => {
     }
   });
 
-  ace.config.set(
-    "basePath",
-    `https://cdn.jsdelivr.net/npm/ace-builds@${ace_version}/src-min-noconflict/`
-  );
+  // Modes and themes not bundled above load on demand from this origin
+  // (vite.config.ts emits ace-builds' modules under static ace/), never
+  // from a public CDN: no phone-home, and the editor works offline.
+  ace.config.set("basePath", `${staticURL}/ace/`);
 
   if (!layoutStore.loading) {
     initEditor(fileContent);

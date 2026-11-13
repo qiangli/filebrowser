@@ -1,8 +1,40 @@
+import fs from "node:fs";
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import { compression } from "vite-plugin-compression2";
+
+// aceModules ships the Ace editor's runtime-loaded modules (language modes,
+// themes, syntax workers and snippets) with the build so the editor loads
+// them from this origin (see Editor.vue's basePath) instead of a public CDN:
+// no phone-home, and the editor works offline. Registered before the
+// compression plugin so the emitted files are pre-gzipped like every other
+// script.
+function aceModules(): Plugin {
+  const srcDir = path.resolve(
+    __dirname,
+    "node_modules/ace-builds/src-min-noconflict",
+  );
+  return {
+    name: "ace-modules",
+    apply: "build",
+    generateBundle() {
+      const emit = (file: string) =>
+        this.emitFile({
+          type: "asset",
+          fileName: `ace/${file}`,
+          source: fs.readFileSync(path.join(srcDir, file)),
+        });
+      for (const file of fs.readdirSync(srcDir)) {
+        if (/^(mode|theme|worker)-[\w-]+\.js$/.test(file)) emit(file);
+      }
+      for (const file of fs.readdirSync(path.join(srcDir, "snippets"))) {
+        if (/\.js$/.test(file)) emit(`snippets/${file}`);
+      }
+    },
+  };
+}
 
 // No @vitejs/plugin-legacy: this app ships embedded in outpost (and as a
 // self-hosted standalone) for modern browsers only. The legacy nomodule
@@ -11,6 +43,7 @@ import { compression } from "vite-plugin-compression2";
 // fbembed/dist.zip. Modern ESM bundles are unchanged.
 const plugins = [
   vue(),
+  aceModules(),
   VueI18nPlugin({
     include: [path.resolve(__dirname, "./src/i18n/**/*.json")],
   }),
