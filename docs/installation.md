@@ -6,29 +6,29 @@ File Browser is a single binary and can be used as standalone executable. Howeve
 
 The quickest and easiest way to install File Browser is to use a package manager, or our download script, which automatically fetches the latest version of File Browser for your platform. Alternatively, you can manually download the binary from the [releases page](https://github.com/filebrowser/filebrowser/releases).
 
-=== "Brew"
+### Brew
 
-    ```sh
-    brew tap filebrowser/tap
-    brew install filebrowser
-    filebrowser -r /path/to/your/files
-    ```
+```sh
+brew tap filebrowser/tap
+brew install filebrowser
+filebrowser -r /path/to/your/files
+```
 
-=== "Unix"
+### Unix
 
-    ```sh
-    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser -r /path/to/your/files
-    ```
+```sh
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+filebrowser -r /path/to/your/files
+```
 
-=== "Windows"
+### Windows
 
-    ```sh
-    iwr -useb https://raw.githubusercontent.com/filebrowser/get/master/get.ps1 | iex
-    filebrowser -r /path/to/your/files
-    ```
+```sh
+iwr -useb https://raw.githubusercontent.com/filebrowser/get/master/get.ps1 | iex
+filebrowser -r /path/to/your/files
+```
 
-File Browser is now up and running. Read some [first boot](#first-boot) for more information.
+File Browser is now up and running. Read the ["First Boot"](#first-boot) section for more information.
 
 ## Docker
 
@@ -47,7 +47,7 @@ docker run \
 
 Where `filebrowser_data`, `filebrowser_database` and `filebrowser_config` are Docker [volumes](https://docs.docker.com/engine/storage/volumes/), where the data, database and configuration will be stored, respectively. The default configuration and database will be automatically initialized.
 
-The default user that runs File Browser inside the container has PID 1000 and GID 1000. If, for one reason or another, you want to run the Docker container with a different user, please consult Docker's [user documentation](https://docs.docker.com/engine/containers/run/#user).
+The default user that runs File Browser inside the container has UID 1000 and GID 1000. If, for one reason or another, you want to run the Docker container with a different user, please consult Docker's [user documentation](https://docs.docker.com/engine/containers/run/#user).
 
 > [!NOTE]
 >

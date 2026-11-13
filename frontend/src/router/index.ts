@@ -122,7 +122,7 @@ const router = createRouter({
   routes,
 });
 
-router.beforeResolve(async (to, from, next) => {
+router.beforeResolve(async (to, from) => {
   const title = i18n.global.t(titles[to.name as keyof typeof titles]);
   document.title = title + " - " + name;
 
@@ -135,7 +135,7 @@ router.beforeResolve(async (to, from, next) => {
     }
   }
 
-  next();
+  return;
 });
 
 export { router, router as default };

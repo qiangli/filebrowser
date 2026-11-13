@@ -27,7 +27,7 @@ var withHashFile = func(fn handleFunc) handleFunc {
 			return status, err
 		}
 
-		user, err := d.store.Users.Get(d.server.Root, link.UserID)
+		user, err := d.store.Users.Get(d.server.Root, d.server.FollowExternalSymlinks, link.UserID)
 		if err != nil {
 			return errToStatus(err), err
 		}
@@ -52,22 +52,24 @@ var withHashFile = func(fn handleFunc) handleFunc {
 			return errToStatus(err), err
 		}
 
-		// share base path
-		basePath := link.Path
+		// share base path. Canonicalized because it roots both the rebased
+		// filesystem and checkerPrefix below, and a stored path that is not
+		// "/"-separated would make the two disagree on Windows.
+		basePath := slashClean(link.Path)
 
 		// file relative path
 		filePath := ""
 
 		if file.IsDir {
-			basePath = filepath.Clean(link.Path)
 			filePath = ifPath
 		}
 
-		// set fs root to the shared file/folder. ScopedFs (not a bare
-		// BasePathFs) so the share is also symlink-confined: a link inside the
-		// shared subtree that points elsewhere in the owner's scope — outside
-		// the share — must not be followed.
-		d.user.Fs = files.NewScopedFs(d.user.Fs, basePath)
+		// set fs root to the shared file/folder. Unless external symlinks are
+		// explicitly allowed, this is a ScopedFs (not a bare BasePathFs) so the
+		// share is also symlink-confined: a link inside the shared subtree that
+		// points elsewhere in the owner's scope — outside the share — must not be
+		// followed.
+		d.user.Fs = files.NewFs(d.user.Fs, basePath, d.server.FollowExternalSymlinks)
 
 		// the filesystem is now rebased onto basePath, so paths handed to the
 		// rule checker are relative to it. Resolve them back to the user's
@@ -108,7 +110,9 @@ func ifPathWithName(r *http.Request) (id, filePath string) {
 	case 1:
 		return r.URL.Path, "/"
 	default:
-		return pathElements[0], path.Join("/", path.Join(pathElements[1:]...))
+		// Public share routes do not pass through withUser, so canonicalize the
+		// share-relative path here instead.
+		return pathElements[0], slashClean(path.Join(pathElements[1:]...))
 	}
 }
 

@@ -21,20 +21,85 @@ function conflictKey(item: UploadEntry): string {
   return (item.fullPath || item.name).replace(/^\/+/, "");
 }
 
+type ServerConflictEntry = {
+  path: string;
+  name: string;
+  size: number;
+  modified: string;
+};
+
+async function fetchConflictEntries(
+  basePath: string,
+  recursive: boolean
+): Promise<ServerConflictEntry[]> {
+  if (recursive) {
+    return await api.fetchAll(basePath);
+  }
+
+  const destination = await api.fetch(basePath);
+  return destination.items ?? [];
+}
+
+/**
+ * Whether any entry lands below the destination rather than directly in it.
+ * Only then does conflict detection need the whole destination tree.
+ */
+function hasNestedEntries(files: UploadList): boolean {
+  return files.some((file) => conflictKey(file).includes("/"));
+}
+
+function conflictPath(entry: ServerConflictEntry): string {
+  return entry.path.replace(/\\/g, "/");
+}
+
+function decodePath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join("/");
+}
+
+function buildConflictMap(
+  serverEntries: ServerConflictEntry[],
+  basePath: string,
+  includeDirectories: boolean
+): Map<string, ServerConflictEntry> {
+  const serverMap = new Map<string, ServerConflictEntry>();
+  const normBase = decodePath(removePrefix(basePath)).replace(/\/+$/, "");
+  for (const entry of serverEntries) {
+    // A Windows server may return OS-native backslash separators; normalize to
+    // forward slashes so the prefix strip and key lookup line up.
+    const path = conflictPath(entry);
+    const key = includeDirectories
+      ? entry.name
+      : path.startsWith(normBase)
+        ? path.slice(normBase.length)
+        : path;
+    serverMap.set(key.replace(/^\/+/, ""), entry);
+  }
+
+  return serverMap;
+}
+
 /**
  * Return the entries from `files` that already exist under `basePath` on the
  * server, so the caller can prompt the user to overwrite/rename/skip.
  *
- * The whole destination tree is fetched once and indexed by path relative to
- * the destination, then every entry is looked up directly — no need to mirror
- * the upload's folder structure.
- *
  * Directory handling differs by action, hence `includeDirectories`:
- *  - Upload (false): an existing folder is silently merged, so only the
- *    individual files inside it can conflict.
- *  - Copy/move (true): the server stats the destination and rejects it whole if
- *    a same-named entry exists, so the directory itself is a conflict. The list
- *    only holds the top-level items being moved, so each is reported once.
+ *  - Upload (false): existing folders are silently merged, so only files count.
+ *  - Copy/move (true): these move flat top-level selections, so a same-named
+ *    direct child is the only preflight conflict the backend will reject.
+ *
+ * The destination tree is only walked recursively when an entry actually lands
+ * below the destination (a folder upload). Walking it for a flat upload made
+ * pressing Upload wait on a full server-side walk of the whole subtree before
+ * a single byte was sent, which reads as a frozen UI on a large destination.
  *
  * @param files              - flat upload list to check
  * @param basePath           - server destination path (e.g. "/files/uploads/")
@@ -47,26 +112,21 @@ export async function checkConflict(
 ): Promise<ConflictingResource[]> {
   if (files.length === 0) return [];
 
-  let serverEntries: RecursiveEntry[];
+  const recursive = !includeDirectories && hasNestedEntries(files);
+
+  let serverEntries: ServerConflictEntry[];
   try {
-    // Single API call: fetch the entire server tree under basePath.
-    serverEntries = await api.fetchAll(basePath);
+    serverEntries = await fetchConflictEntries(basePath, recursive);
   } catch {
     // The destination doesn't exist yet, so nothing can conflict.
     return [];
   }
 
-  // The server returns paths absolute within the user's scope
-  // (e.g. "/uploads/sub/file.txt"). Strip the basePath prefix so the keys line
-  // up with each entry's conflictKey, which is relative to the destination.
-  const normBase = removePrefix(basePath).replace(/\/+$/, "");
-  const serverMap = new Map<string, RecursiveEntry>();
-  for (const entry of serverEntries) {
-    const rel = entry.path.startsWith(normBase)
-      ? entry.path.slice(normBase.length)
-      : entry.path;
-    serverMap.set(rel.replace(/^\/+/, ""), entry);
-  }
+  const serverMap = buildConflictMap(
+    serverEntries,
+    basePath,
+    includeDirectories
+  );
 
   const conflicts: ConflictingResource[] = [];
   files.forEach((file, index) => {
@@ -77,7 +137,7 @@ export async function checkConflict(
 
     conflicts.push({
       index,
-      name: server.path,
+      name: conflictPath(server),
       origin: { lastModified: file.file?.lastModified, size: file.size },
       dest: { lastModified: server.modified, size: server.size },
       checked: ["origin"],

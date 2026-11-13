@@ -26,6 +26,7 @@
       <img
         v-if="!readOnly && type === 'image' && isThumbsEnabled"
         v-lazy="thumbnailUrl"
+        :alt="name"
       />
       <i v-else class="material-icons"></i>
     </div>

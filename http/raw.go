@@ -3,6 +3,7 @@ package fbhttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -33,13 +34,6 @@ type archiveEntry struct {
 // errUnsupportedAlgorithm is returned for a format this build cannot write.
 var errUnsupportedAlgorithm = errors.New(
 	"filebrowser: this build writes zip, tar and tar.gz; rebuild with -tags fb_archives for bz2/xz/lz4/sz/br/zst")
-
-func slashClean(name string) string {
-	if name == "" || name[0] != '/' {
-		name = "/" + name
-	}
-	return gopath.Clean(name)
-}
 
 func parseQueryFiles(r *http.Request, f *files.FileInfo, _ *users.User) ([]string, error) {
 	var fileSlice []string
@@ -118,12 +112,19 @@ func getFiles(d *data, path, commonPath string) ([]archiveEntry, error) {
 		nameInArchive := strings.TrimPrefix(path, commonPath)
 		nameInArchive = strings.TrimPrefix(nameInArchive, string(filepath.Separator))
 		nameInArchive = filepath.ToSlash(nameInArchive)
-		// filepath.ToSlash only rewrites the host separator, so on a Linux
-		// host a stored backslash survives and is emitted verbatim into the
-		// archive. Windows extractors then treat "\" as a path separator,
-		// allowing the entry to escape the extraction directory (zip-slip).
-		// Strip Windows separators regardless of host OS.
-		nameInArchive = strings.ReplaceAll(nameInArchive, "\\", "/")
+		// A backslash is a legal filename character on POSIX hosts, so it can
+		// reach here verbatim. Rewriting it to the path separator "/" would
+		// manufacture a traversal sequence (e.g. "..\..\x" -> "../../x") that
+		// escapes the extraction directory on the victim's machine, while
+		// leaving it as "\" lets Windows extractors treat it as a separator.
+		// Neutralize it to an inert character instead of turning it into one.
+		nameInArchive = strings.ReplaceAll(nameInArchive, "\\", "_")
+
+		// Defense in depth: never emit an archive entry whose path escapes the
+		// archive root, regardless of how the name was produced.
+		if cleaned := gopath.Clean("/" + nameInArchive); cleaned != "/"+nameInArchive {
+			return nil, fmt.Errorf("refusing unsafe archive entry name: %q", nameInArchive)
+		}
 
 		archiveFiles = append(archiveFiles, archiveEntry{
 			Info:          info,

@@ -1,6 +1,6 @@
 # Authentication
 
-There are three possible authentication methods. Each one of them has its own capabilities and specification. If you are interested in contributing with one more authentication method, please [check the guidelines](contributing.md).
+There are three possible authentication methods. Each one of them has its own capabilities and specification. Adding another authentication method is described in [Building File Browser](../CONTRIBUTING.md#authentication-provider).
 
 ## JSON Auth (default)
 
@@ -45,6 +45,10 @@ Where `X-My-Header` is the HTTP header provided by your proxy with the username.
 The Hook Authentication method in FileBrowser allows developers to delegate user authentication to an external script or program. Instead of validating credentials internally, FileBrowser sends the username and password to a custom command defined by the administrator. This command receives the credentials through environment variables and returns key‑value pairs indicating whether the user should be authenticated, blocked, or passed through.
 
 The hook’s output controls user permissions, scope, locale, and other attributes, making it a powerful and extensible authentication mechanism.
+
+> [!WARNING]
+>
+> The submitted username and password are attacker-controlled and are handed to your hook command as the `USERNAME` and `PASSWORD` environment variables. File Browser runs the command directly, without a shell, so the values themselves are inert. However, your script must treat them as untrusted: always quote them (`"$USERNAME"`, `"$PASSWORD"`) and never pass them unquoted to a shell, `eval`, `bash -c`, command substitution, or backticks. A hook script that shell-evaluates these values turns any login request into remote code execution.
 
 For example, the following code delegates filebrowser authentication to a PowerShell script on Windows. You can configure any command (for example, a script in Python, Node.js, etc.).
 

@@ -47,21 +47,27 @@ func (s *Settings) GetRules() []rules.Rule {
 
 // Server specific settings.
 type Server struct {
-	Root                  string `json:"root"`
-	BaseURL               string `json:"baseURL"`
-	Socket                string `json:"socket"`
-	TLSKey                string `json:"tlsKey"`
-	TLSCert               string `json:"tlsCert"`
-	Port                  string `json:"port"`
-	Address               string `json:"address"`
-	Log                   string `json:"log"`
-	EnableThumbnails      bool   `json:"enableThumbnails"`
-	ResizePreview         bool   `json:"resizePreview"`
-	EnableExec            bool   `json:"enableExec"`
-	TypeDetectionByHeader bool   `json:"typeDetectionByHeader"`
-	ImageResolutionCal    bool   `json:"imageResolutionCalculation"`
-	AuthHook              string `json:"authHook"`
-	TokenExpirationTime   string `json:"tokenExpirationTime"`
+	Root                   string `json:"root"`
+	BaseURL                string `json:"baseURL"`
+	Socket                 string `json:"socket"`
+	TLSKey                 string `json:"tlsKey"`
+	TLSCert                string `json:"tlsCert"`
+	Port                   string `json:"port"`
+	Address                string `json:"address"`
+	Log                    string `json:"log"`
+	EnableThumbnails       bool   `json:"enableThumbnails"`
+	ResizePreview          bool   `json:"resizePreview"`
+	EnableExec             bool   `json:"enableExec"`
+	TypeDetectionByHeader  bool   `json:"typeDetectionByHeader"`
+	ImageResolutionCal     bool   `json:"imageResolutionCalculation"`
+	AuthHook               string `json:"authHook"`
+	TokenExpirationTime    string `json:"tokenExpirationTime"`
+	FollowExternalSymlinks bool   `json:"followExternalSymlinks"`
+
+	// CaseInsensitiveFs is detected from Root at startup rather than
+	// configured, and tells the rule checker to match paths case-insensitively.
+	// It is never persisted.
+	CaseInsensitiveFs bool `json:"-"`
 }
 
 // Clean cleans any variables that might need cleaning.

@@ -1,17 +1,14 @@
-# filebrowser config init
+# filebrowser config set
 
-Initialize a new database
+Updates the configuration
 
 ## Synopsis
 
-Initialize a new database to use with File Browser. All of
-this options can be changed in the future with the command
-'filebrowser config set'. The user related flags apply
-to the defaults when creating new users and you don't
-override the options.
+Updates the configuration. Set the flags for the options
+you want to change. Other options will remain unchanged.
 
 ```
-filebrowser config init [flags]
+filebrowser config set [flags]
 ```
 
 ## Options
@@ -41,7 +38,8 @@ filebrowser config init [flags]
       --disableThumbnails                disable image thumbnails
       --disableTypeDetectionByHeader     disables type detection by reading file headers
       --fileMode string                  mode bits that new files are created with (default "0o640")
-  -h, --help                             help for init
+      --followExternalSymlinks           follow symlinks whose target is outside the user scope (unsafe)
+  -h, --help                             help for set
       --hideDotfiles                     hide dotfiles in file listings
       --hideLoginButton                  hide login button from public pages
   -k, --key string                       tls key

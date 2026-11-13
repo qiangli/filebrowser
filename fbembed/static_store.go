@@ -8,6 +8,7 @@ import (
 	"github.com/filebrowser/filebrowser/v2/share"
 	"github.com/filebrowser/filebrowser/v2/storage"
 	"github.com/filebrowser/filebrowser/v2/users"
+	"strings"
 )
 
 // newStaticStorage builds a storage.Storage with NO database. The embed is
@@ -89,16 +90,25 @@ func (s *staticUsers) GetBy(interface{}) (*users.User, error) {
 	return &u, nil
 }
 
+// GetByScope matches the lone user's scope case-insensitively, like the Bolt
+// backend, and reports ErrNotExist otherwise.
+func (s *staticUsers) GetByScope(scope string) (*users.User, error) {
+	if !strings.EqualFold(s.tmpl.Scope, scope) {
+		return nil, fberrors.ErrNotExist
+	}
+	return s.GetBy(nil)
+}
+
 func (s *staticUsers) Gets() ([]*users.User, error) {
 	u, _ := s.GetBy(nil)
 	return []*users.User{u}, nil
 }
 
-func (s *staticUsers) Save(*users.User) error                 { return nil }
-func (s *staticUsers) Update(*users.User, ...string) error    { return nil }
-func (s *staticUsers) DeleteByID(uint) error                  { return fberrors.ErrRootUserDeletion }
-func (s *staticUsers) DeleteByUsername(string) error          { return fberrors.ErrRootUserDeletion }
-func (s *staticUsers) CountAdmins() (int, error)              { return 1, nil }
+func (s *staticUsers) Save(*users.User) error              { return nil }
+func (s *staticUsers) Update(*users.User, ...string) error { return nil }
+func (s *staticUsers) DeleteByID(uint) error               { return fberrors.ErrRootUserDeletion }
+func (s *staticUsers) DeleteByUsername(string) error       { return fberrors.ErrRootUserDeletion }
+func (s *staticUsers) CountAdmins() (int, error)           { return 1, nil }
 
 // staticSettings serves the constant Settings + Server; writes no-op.
 type staticSettings struct {
@@ -106,10 +116,10 @@ type staticSettings struct {
 	server   *settings.Server
 }
 
-func (s *staticSettings) Get() (*settings.Settings, error)   { return s.settings, nil }
-func (s *staticSettings) Save(*settings.Settings) error      { return nil }
+func (s *staticSettings) Get() (*settings.Settings, error)     { return s.settings, nil }
+func (s *staticSettings) Save(*settings.Settings) error        { return nil }
 func (s *staticSettings) GetServer() (*settings.Server, error) { return s.server, nil }
-func (s *staticSettings) SaveServer(*settings.Server) error  { return nil }
+func (s *staticSettings) SaveServer(*settings.Server) error    { return nil }
 
 // staticAuth always resolves NoAuth; Save no-ops.
 type staticAuth struct{}

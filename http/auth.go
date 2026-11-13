@@ -66,7 +66,7 @@ func (e extractor) ExtractToken(r *http.Request) (string, error) {
 	return "", request.ErrNoTokenInRequest
 }
 
-func renewableErr(err error, d *data) bool {
+func renewableErr(err error, r *http.Request, d *data, tk *authToken) bool {
 	if d.settings.AuthMethod != fbAuth.MethodProxyAuth || err == nil {
 		return false
 	}
@@ -79,7 +79,38 @@ func renewableErr(err error, d *data) bool {
 		return false
 	}
 
-	return true
+	// The expiration is only waived because the trusted proxy, not the token,
+	// decides when the session ends. Require the proxy to still assert the same
+	// identity on this request, otherwise a token that leaked before it expired
+	// would authenticate on its own forever.
+	return proxyAsserts(r, d, tk.User.ID)
+}
+
+// proxyAsserts reports whether the proxy-auth header on r identifies the user
+// the token was issued for. The username is resolved through the user store, so
+// that it is matched exactly as a regular proxy login would match it.
+func proxyAsserts(r *http.Request, d *data, id uint) bool {
+	auther, err := d.store.Auth.Get(fbAuth.MethodProxyAuth)
+	if err != nil {
+		return false
+	}
+
+	proxy, ok := auther.(*fbAuth.ProxyAuth)
+	if !ok || proxy.Header == "" {
+		return false
+	}
+
+	username := r.Header.Get(proxy.Header)
+	if username == "" {
+		return false
+	}
+
+	user, err := d.store.Users.Get(d.server.Root, d.server.FollowExternalSymlinks, username)
+	if err != nil {
+		return false
+	}
+
+	return user.ID == id
 }
 
 func withUser(fn handleFunc) handleFunc {
@@ -91,7 +122,7 @@ func withUser(fn handleFunc) handleFunc {
 		var tk authToken
 		p := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 		token, err := request.ParseFromRequest(r, &extractor{}, keyFunc, request.WithClaims(&tk), request.WithParser(p))
-		if (err != nil || !token.Valid) && !renewableErr(err, d) {
+		if (err != nil || !token.Valid) && !renewableErr(err, r, d, &tk) {
 			return http.StatusUnauthorized, nil
 		}
 
@@ -102,7 +133,7 @@ func withUser(fn handleFunc) handleFunc {
 			w.Header().Add("X-Renew-Token", "true")
 		}
 
-		d.user, err = d.store.Users.Get(d.server.Root, tk.User.ID)
+		d.user, err = d.store.Users.Get(d.server.Root, d.server.FollowExternalSymlinks, tk.User.ID)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -117,6 +148,8 @@ func withUser(fn handleFunc) handleFunc {
 		case "hide":
 			d.user.HideDotfiles = true
 		}
+
+		canonicalizeRequestPath(r)
 		return fn(w, r, d)
 	}
 }
@@ -202,19 +235,15 @@ var signupHandler = func(w http.ResponseWriter, r *http.Request, d *data) (int, 
 	}
 
 	user.Password = pwd
-	if d.settings.CreateUserDir {
-		user.Scope = ""
-	}
 
-	userHome, err := d.settings.MakeUserDir(user.Username, user.Scope, d.server.Root)
+	derivedScope, err := d.settings.CreateUserHome(user, d.server.Root, false)
 	if err != nil {
-		log.Printf("create user: failed to mkdir user home dir: [%s]", userHome)
 		return http.StatusInternalServerError, err
 	}
-	user.Scope = userHome
-	log.Printf("new user: %s, home dir: [%s].", user.Username, userHome)
 
-	err = d.store.Users.Save(user)
+	log.Printf("new user: %s, home dir: [%s].", user.Username, user.Scope)
+
+	err = d.store.Users.SaveProvisioned(user, derivedScope)
 	if errors.Is(err, fberrors.ErrExist) {
 		return http.StatusConflict, err
 	} else if err != nil {

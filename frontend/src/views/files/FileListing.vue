@@ -348,6 +348,7 @@ import { useLayoutStore } from "@/stores/layout";
 import { files as api } from "@/api";
 import { enableExec } from "@/utils/constants";
 import * as upload from "@/utils/upload";
+import buttons from "@/utils/buttons";
 import css from "@/utils/css";
 import { throttle } from "lodash-es";
 import { Base64 } from "js-base64";
@@ -819,11 +820,15 @@ const drop = async (event: DragEvent) => {
     }
   }
 
+  // Checking the destination hits the server, so show it is working rather
+  // than leaving the action looking inert until the upload starts.
+  buttons.loading("upload");
   const conflict = await upload.checkConflict(files, path);
 
   const preselect = removePrefix(path) + (files[0].fullPath || files[0].name);
 
   if (conflict.length > 0) {
+    buttons.done("upload");
     layoutStore.showHover({
       prompt: "resolve-conflict",
       props: {
@@ -844,7 +849,7 @@ const drop = async (event: DragEvent) => {
           }
         }
         if (files.length > 0) {
-          upload.handleFiles(files, path, true);
+          upload.handleFiles(files, path);
           fileStore.preselect = preselect;
         }
       },
@@ -877,9 +882,14 @@ const uploadInput = async (event: Event) => {
   }
 
   const path = route.path.endsWith("/") ? route.path : route.path + "/";
+
+  // Checking the destination hits the server, so show it is working rather
+  // than leaving the action looking inert until the upload starts.
+  buttons.loading("upload");
   const conflict = await upload.checkConflict(uploadFiles, path);
 
   if (conflict.length > 0) {
+    buttons.done("upload");
     layoutStore.showHover({
       prompt: "resolve-conflict",
       props: {
@@ -900,7 +910,7 @@ const uploadInput = async (event: Event) => {
           }
         }
         if (uploadFiles.length > 0) {
-          upload.handleFiles(uploadFiles, path, true);
+          upload.handleFiles(uploadFiles, path);
         }
       },
     });

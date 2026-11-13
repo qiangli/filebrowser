@@ -29,8 +29,8 @@
     "rename": "Umbenennen",
     "replace": "Ersetzen",
     "reportIssue": "Problem melden",
-    "resumeTransfer": "Resume previous transfer",
-    "resumeTransferTooltip": "Skip all conflicting files, except the ones that are smaller on the server as we suppose that their transfert has been interrupted.",
+    "resumeTransfer": "Vorherige Übertragung fortsetzen",
+    "resumeTransferTooltip": "Alle Dateien mit Konflikten überspringen, außer denen, die auf dem Server kleiner sind, da wir davon ausgehen, dass deren Übertragung unterbrochen wurde.",
     "save": "Speichern",
     "schedule": "Planen",
     "search": "Suchen",
@@ -264,6 +264,9 @@
     "shareManagement": "Freigabeverwaltung",
     "shareDeleted": "Freigabe gelöscht!",
     "singleClick": "Einfacher Klick zum Öffnen von Dateien und Verzeichnissen",
+    "sunsetBody": "This project is being wound down. It is archived on 2026-09-01, after which there will be no further releases, bug fixes, or security fixes. Existing releases and Docker images stay online. Do not expose this instance directly to the internet without authentication in front of it.",
+    "sunsetLink": "Read the project status, known unfixed security issues, and hardening guidance",
+    "sunsetTitle": "File Browser is being archived",
     "themes": {
       "default": "Systemstandard",
       "dark": "Dunkel",
@@ -283,7 +286,7 @@
     "currentPassword": "Dein aktuelles Passwort"
   },
   "sidebar": {
-    "diskUsed": "{used} of {total} used",
+    "diskUsed": "{used} von {total} belegt",
     "help": "Hilfe",
     "hugoNew": "Hugo Neu",
     "login": "Anmelden",
